@@ -8,16 +8,101 @@ enum ParserError: Error {
     case unsupportedEncoding(String.Encoding)
 }
 
+class DotProcessHandler {
+	// Hold a reference to the parser so it survives
+	fileprivate var parser: Parser? = nil
+	private let internalParser: OpaquePointer
+	private let dotProcess: Process
+	private let dotInPipe = Pipe()
+	private let dotOutPipe = Pipe()
+	private let outputFileURL: URL
+
+	init(internalParser: OpaquePointer, dotToolURL: URL, outputFolderURL: URL) {
+		self.internalParser = internalParser
+
+		try? FileManager.default.createDirectory(at: outputFolderURL, withIntermediateDirectories: true)
+
+		self.dotProcess = Process()
+		self.dotProcess.executableURL = dotToolURL
+		self.dotProcess.arguments = ["-Tsvg"]
+
+		self.dotProcess.standardInput = self.dotInPipe
+		self.dotProcess.standardOutput = self.dotOutPipe
+
+		let uniqueOutputFileName = UUID().uuidString.appending(".html")
+		self.outputFileURL = outputFolderURL.appendingPathComponent(uniqueOutputFileName)
+
+		var gotBytes = false
+
+		self.dotOutPipe.fileHandleForReading.readabilityHandler = { [weak self] file in
+			guard let strongSelf = self else { return }
+
+			let data = file.availableData
+			guard data.count > 0 else { return }
+
+			if gotBytes == false {
+				FileManager.default.createFile(atPath: strongSelf.outputFileURL.path, contents: "<!DOCTYPE html>\n<style>svg { width: 100%; }</style>\n\n".data(using: .utf8))
+				gotBytes = true
+			}
+			
+			do {
+				let outputFileHandle = try FileHandle(forWritingTo: strongSelf.outputFileURL)
+				outputFileHandle.seekToEndOfFile()
+				outputFileHandle.write(file.availableData)
+				outputFileHandle.closeFile()
+			}
+			catch {
+				NSLog("Failed with \(error)")
+			}
+		}
+
+		do {
+			let copyFd = self.dotInPipe.fileHandleForWriting.fileDescriptor
+			ts_parser_print_dot_graphs(self.internalParser, copyFd)
+			try self.dotProcess.run()
+		}
+		catch {
+			NSLog("Failed to launch dot - do you have graphviz installed?")
+		}
+	}
+
+	func finishHandler() {
+		self.dotInPipe.fileHandleForWriting.closeFile()
+		self.dotProcess.waitUntilExit()
+	}
+
+	deinit {
+		self.dotProcess.waitUntilExit()
+	}
+}
+
 public class Parser {
     private let internalParser: OpaquePointer
     private let encoding: String.Encoding
 
+#if DEBUG
+	// In DEBUG builds, pipe debug information from tree-sitter to a
+	// dot command that will convert it to SVG for easy viewing in a browser.
+	public var dotToolURL: URL = URL(fileURLWithPath: "/opt/homebrew/bin/dot")
+	public var dotFilesFolderURL = URL(fileURLWithPath: "/tmp/TreeSitterDebug")
+	private let dotProcessHandler: DotProcessHandler?
+#endif
+
     public init() {
         self.internalParser = ts_parser_new()
         self.encoding = String.nativeUTF16Encoding
+
+#if DEBUG
+		self.dotProcessHandler = DotProcessHandler(internalParser: self.internalParser, dotToolURL: self.dotToolURL, outputFolderURL: self.dotFilesFolderURL)
+		//self.dotProcessHandler?.parser = self
+#else
+		self.dotProcessHandler = nil
+#endif
     }
 
     deinit {
+		self.dotProcessHandler?.finishHandler()
+		RunLoop.current.run(until: Date(timeIntervalSinceNow: 2))
         ts_parser_delete(internalParser)
     }
 }

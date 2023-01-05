@@ -74,8 +74,9 @@ extension Node {
     public var pointRange: Range<Point> {
         let start = ts_node_start_point(internalNode)
         let end = ts_node_end_point(internalNode)
-
-        return Point(internalPoint: start)..<Point(internalPoint: end)
+		#warning("just preventing crash")
+		return Point(internalPoint:start)..<Point(internalPoint: start)
+//        return Point(internalPoint: start)..<Point(internalPoint: end)
     }
 
     public var tsRange: TSRange {
