@@ -30,7 +30,7 @@ Tree-sitter language parsers are separate projects, and you'll probably need at 
 
 | Parser | Make | SPM | Official Repo |
 | --- | :---: | :---: | :---: |
-| [Bash](https://github.com/lukepistrol/tree-sitter-bash/tree/feature/spm) | | ✅ | |
+| [Bash](https://github.com/tree-sitter/tree-sitter-bash) | | ✅ | ✅ |
 | [C](https://github.com/tree-sitter/tree-sitter-c) | | ✅ | ✅ |
 | [C++](https://github.com/tree-sitter/tree-sitter-cpp) | | ✅ | ✅ |
 | [C#](https://github.com/tree-sitter/tree-sitter-c-sharp) | | ✅ | ✅ |
@@ -40,7 +40,7 @@ Tree-sitter language parsers are separate projects, and you'll probably need at 
 | [CSS](https://github.com/lukepistrol/tree-sitter-css/tree/feature/spm) | ✅ | ✅ | |
 | [D](https://github.com/CyberShadow/tree-sitter-d) | | | |
 | [Dart](https://github.com/UserNobody14/tree-sitter-dart) | | | |
-| [Dockerfile](https://github.com/camdencheek/tree-sitter-dockerfile) | | | |
+| [Dockerfile](https://github.com/camdencheek/tree-sitter-dockerfile) | ✅ | ✅ | ✅ |
 | [Elixir](https://github.com/elixir-lang/tree-sitter-elixir) | ✅ | ✅ | ✅ |
 | [Elm](https://github.com/elm-tooling/tree-sitter-elm) | | ✅ | ✅ |
 | [Erlang](https://github.com/AbstractMachinesLab/tree-sitter-erlang) | | | |
@@ -54,7 +54,7 @@ Tree-sitter language parsers are separate projects, and you'll probably need at 
 | [graphql](https://github.com/bkegley/tree-sitter-graphql) | | | |
 | [Hack](https://github.com/slackhq/tree-sitter-hack) | | | |
 | [Haskell](https://github.com/tree-sitter/tree-sitter-haskell) | | ✅ | ✅ |
-| [HCL](https://github.com/MichaHoffmann/tree-sitter-hcl) | | | |
+| [HCL](https://github.com/MichaHoffmann/tree-sitter-hcl) | | ✅ | ✅ |
 | [HTML](https://github.com/mattmassicotte/tree-sitter-html/tree/feature/spm) | | ✅ | |
 | [Java](https://github.com/tree-sitter/tree-sitter-java) | ✅ | ✅ | ✅ |
 | [Javascript](https://github.com/tree-sitter/tree-sitter-javascript) | | ✅ | ✅ |
@@ -70,7 +70,7 @@ Tree-sitter language parsers are separate projects, and you'll probably need at 
 | [Markdown](https://github.com/mattmassicotte/tree-sitter-markdown) | ✅ | | |
 | [OCaml](https://github.com/tree-sitter/tree-sitter-ocaml) | | | |
 | [Pascal](https://github.com/Isopod/tree-sitter-pascal) | | | |
-| [Perl](https://github.com/mattmassicotte/tree-sitter-perl/tree/feature/spm) | | ✅ | |
+| [Perl](https://github.com/ganezdragon/tree-sitter-perl) | | ✅ | ✅ |
 | [PHP](https://github.com/tree-sitter/tree-sitter-php) | ✅ | ✅ | ✅ |
 | [PowerShell](https://github.com/PowerShell/tree-sitter-PowerShell) | | | |
 | [Python](https://github.com/mattmassicotte/tree-sitter-python/feature/spm) | | ✅ | |
