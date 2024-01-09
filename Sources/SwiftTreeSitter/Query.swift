@@ -42,7 +42,7 @@ public enum QueryPredicateError: Error {
 /// Typically, query definitions are stored in a `.scm` file.
 ///
 /// Tree-sitter's official documentation: [Pattern Matching with Queries](https://tree-sitter.github.io/tree-sitter/using-parsers#pattern-matching-with-queries)
-public class Query {
+public final class Query: Sendable {
     let internalQuery: OpaquePointer
     let predicateList: [[Predicate]]
 
@@ -92,20 +92,30 @@ public class Query {
         return Int(ts_query_string_count(internalQuery))
     }
 
-	/// Ru  a query
-	///
-	/// Note that both the node **and** the tree is is part of
-	/// must remain valid as long as the query is being used.
+	/// Run a query
 	///
 	/// - Parameter node: the root node for the query
-	/// - Parameter tree: keep an optional reference to the tree
-    public func execute(node: Node, in tree: Tree? = nil) -> QueryCursor {
-        let cursor = QueryCursor()
+	/// - Parameter tree: a reference to the tree
+    public func execute(node: Node, in tree: Tree) -> QueryCursor {
+        let cursor = QueryCursor(internalTree: tree)
 
-        cursor.execute(query: self, node: node, in: tree)
+        cursor.execute(query: self, node: node)
 
         return cursor
     }
+
+	/// Run a query against the root node of a tree.
+	///
+	/// - Parameter tree: a reference to the tree
+	public func execute(in tree: Tree) -> QueryCursor {
+		let cursor = QueryCursor(internalTree: tree)
+
+		if let node = tree.rootNode {
+			cursor.execute(query: self, node: node)
+		}
+
+		return cursor
+	}
 
     public func captureName(for id: Int) -> String? {
         var length: UInt32 = 0
@@ -149,8 +159,8 @@ public struct QueryCapture {
     public let patternIndex: Int
 	public let metadata: [String: String]
 
-    init?(tsCapture: TSQueryCapture, name: String?, patternIndex: Int, metadata: [String: String]) {
-        guard let node = Node(internalNode: tsCapture.node) else {
+	init?(tsCapture: TSQueryCapture, internalTree: Tree, name: String?, patternIndex: Int, metadata: [String: String]) {
+		guard let node = Node(internalNode: tsCapture.node, internalTree: internalTree) else {
             return nil
         }
 
@@ -161,14 +171,14 @@ public struct QueryCapture {
 		self.metadata = metadata
     }
 
-	init?(tsCapture: TSQueryCapture, query: Query?, patternIndex: Int) {
+	init?(tsCapture: TSQueryCapture, internalTree: Tree, query: Query?, patternIndex: Int) {
 		let name = query?.captureName(for: Int(tsCapture.index))
 
 		let predicates = query?.predicates(for: patternIndex) ?? []
 
 		let metadata = name.map { QueryCapture.evaluateDirectives(predicates, with: $0) } ?? [:]
 
-		self.init(tsCapture: tsCapture, name: name, patternIndex: patternIndex, metadata: metadata)
+		self.init(tsCapture: tsCapture, internalTree: internalTree, name: name, patternIndex: patternIndex, metadata: metadata)
 	}
 
 	private static func evaluateDirectives(_ predicates: [Predicate], with name: String) -> [String: String] {
@@ -229,6 +239,11 @@ public struct QueryMatch {
     public func captures(named name: String) -> [QueryCapture] {
         return captures.filter({ $0.name == name })
     }
+
+	/// Returns all nodes that correspond to the captures.s
+	public var nodes: [Node] {
+		captures.map { $0.node }
+	}
 }
 
 /// A tree-sitter TSQueryCursor wrapper
@@ -237,11 +252,13 @@ public struct QueryMatch {
 /// it does evaluate `#set!` directives.
 public class QueryCursor {
     let internalCursor: OpaquePointer
-    public private(set) var activeQuery: Query?
-    private var tree: Tree?
+	let internalTree: Tree
 
-    public init() {
+    public private(set) var activeQuery: Query?
+
+	init(internalTree: Tree) {
         self.internalCursor = ts_query_cursor_new()
+		self.internalTree = internalTree
     }
 
     deinit {
@@ -255,10 +272,8 @@ public class QueryCursor {
     ///
     /// - Parameter query: the query object to execute
     /// - Parameter node: the root node for the query
-    /// - Parameter tree: keep an optional reference to the tree
-    public func execute(query: Query, node: Node, in tree: Tree? = nil) {
+    public func execute(query: Query, node: Node) {
         self.activeQuery = query
-        self.tree = tree
 
         ts_query_cursor_exec(internalCursor, query.internalQuery, node.internalNode)
     }
@@ -305,7 +320,7 @@ public class QueryCursor {
 
         let capture = captureBuffer[Int(index)]
 
-		return QueryCapture(tsCapture: capture, query: activeQuery, patternIndex: Int(match.pattern_index))
+		return QueryCapture(tsCapture: capture, internalTree: internalTree, query: activeQuery, patternIndex: Int(match.pattern_index))
     }
 }
 
@@ -338,7 +353,7 @@ extension QueryCursor: Sequence, IteratorProtocol {
 		let metadata = evaluateDirectives(predicates)
 
 		let captures = captureBuffer.compactMap({
-			return QueryCapture(tsCapture: $0, query: activeQuery, patternIndex: patternIndex)
+			return QueryCapture(tsCapture: $0, internalTree: internalTree, query: activeQuery, patternIndex: patternIndex)
 		})
 
         return QueryMatch(id: Int(match.id),

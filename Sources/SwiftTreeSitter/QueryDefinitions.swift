@@ -12,12 +12,35 @@ public struct NamedRange: Codable, Equatable, Sendable, Hashable {
 		self.tsRange = tsRange
 	}
 
+	public init(name: String, tsRange: TSRange) {
+		let components = name.split(separator: ".").map(String.init)
+
+		self.init(nameComponents: components, tsRange: tsRange)
+	}
+
+	public init (name: String, range: NSRange, pointRange: Range<Point> = Point.zero..<Point.zero) {
+		let tsRange = TSRange(points: pointRange,
+							  bytes: range.byteRange)
+
+		self.init(name: name, tsRange: tsRange)
+	}
+
 	public var name: String {
 		return nameComponents.joined(separator: ".")
 	}
 
 	public var range: NSRange {
 		return tsRange.bytes.range
+	}
+}
+
+extension NamedRange: Comparable {
+	public static func < (lhs: NamedRange, rhs: NamedRange) -> Bool {
+		if lhs.tsRange != rhs.tsRange {
+			return lhs.tsRange < rhs.tsRange
+		}
+
+		return lhs.nameComponents.count < rhs.nameComponents.count
 	}
 }
 
@@ -66,6 +89,12 @@ public extension QueryCapture {
 	}
 }
 
+public extension QueryCapture {
+	var locals: NamedRange? {
+		return highlight
+	}
+}
+
 public extension QueryCursor {
 	/// Interpret the cursor using the "injections.scm" definition
 	///
@@ -90,7 +119,7 @@ public extension ResolvingQueryCursor {
 	///
 	/// If the cursor's textProvider is nil and a node contents is needed, the injection is dropped.
 	func injections() -> [NamedRange] {
-		return compactMap({ $0.injection(with: textProvider) })
+		return compactMap({ $0.injection(with: context.textProvider) })
 	}
 
 	/// Interpret the cursor using the "highlights.scm" definition
@@ -101,5 +130,13 @@ public extension ResolvingQueryCursor {
 			.flatMap({ $0 })
 			.sorted()
 			.compactMap { $0.highlight }
+	}
+}
+
+public extension ResolvingQueryCursor {
+	func locals() -> [NamedRange] {
+		return map({ $0.captures })
+			.flatMap({ $0 })
+			.compactMap({ $0.locals })
 	}
 }
