@@ -1,5 +1,6 @@
 import Foundation
 import SwiftTreeSitter
+import TreeSitter
 
 extension Point {
 	public typealias LocationTransformer = (Int) -> Point?
@@ -55,7 +56,7 @@ extension InputEdit {
 
 extension Parser {
 	func parse(state: ParseState, readHandler: Parser.ReadBlock) -> ParseState {
-		let newTree = parse(tree: state.tree, readBlock: readHandler)
+		let newTree = parse(tree: state.tree, encoding: self.encoding == .utf16BigEndian ? TSInputEncodingUTF16BE : TSInputEncodingUTF16LE, readBlock: readHandler)
 
 		return ParseState(tree: newTree)
 	}

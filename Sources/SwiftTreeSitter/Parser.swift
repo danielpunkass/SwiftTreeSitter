@@ -109,13 +109,13 @@ extension Parser {
                 return nil
             }
 
-            return ts_parser_parse_string_encoding(internalParser, nil, ptr, UInt32(dataLength), TSInputEncodingUTF16)
+			return ts_parser_parse_string_encoding(internalParser, nil, ptr, UInt32(dataLength), self.encoding == .utf16BigEndian ? TSInputEncodingUTF16BE : TSInputEncodingUTF16LE)
         })
 
         return optionalTreePtr.flatMap({ MutableTree(internalTree: $0) })
     }
 
-	public func parse(tree: Tree?, encoding: TSInputEncoding = TSInputEncodingUTF16, readBlock: ReadBlock) -> MutableTree? {
+	public func parse(tree: Tree?, encoding: TSInputEncoding, readBlock: ReadBlock) -> MutableTree? {
 		return withoutActuallyEscaping(readBlock) { escapingClosure in
 			let input = Input(encoding: encoding, readBlock: escapingClosure)
 
@@ -131,14 +131,14 @@ extension Parser {
 		}
     }
 
-	public func parse(tree: MutableTree?, encoding: TSInputEncoding = TSInputEncodingUTF16, readBlock: ReadBlock) -> MutableTree? {
+	public func parse(tree: MutableTree?, encoding: TSInputEncoding, readBlock: ReadBlock) -> MutableTree? {
 		parse(tree: tree?.tree, encoding: encoding, readBlock: readBlock)
 	}
 
     public func parse(tree: Tree?, string: String, limit: Int? = nil, chunkSize: Int = 2048) -> MutableTree? {
         let readFunction = Parser.readFunction(for: string, limit: limit, chunkSize: chunkSize)
 
-        return parse(tree: tree, readBlock: readFunction)
+		return parse(tree: tree, encoding: self.encoding == .utf16BigEndian ? TSInputEncodingUTF16BE : TSInputEncodingUTF16LE, readBlock: readFunction)
     }
 
 	public func parse(tree: MutableTree?, string: String, limit: Int? = nil, chunkSize: Int = 2048) -> MutableTree? {
