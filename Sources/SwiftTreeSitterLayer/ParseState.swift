@@ -3,10 +3,12 @@ import Foundation
 import SwiftTreeSitter
 
 struct ParseState {
-	let tree: Tree?
+	let tree: MutableTree?
+	let includedSet: IndexSet?
 
-	init(tree: Tree? = nil) {
+	init(tree: MutableTree? = nil) {
 		self.tree = tree
+		self.includedSet = tree?.includedSet
 	}
 
 	func node(in range: Range<UInt32>) -> Node? {
@@ -22,7 +24,7 @@ struct ParseState {
 	}
 
 	func copy() -> ParseState {
-		return ParseState(tree: tree?.copy())
+		return ParseState(tree: tree?.mutableCopy())
 	}
 }
 

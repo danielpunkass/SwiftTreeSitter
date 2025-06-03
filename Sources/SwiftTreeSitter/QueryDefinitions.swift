@@ -1,5 +1,31 @@
 import Foundation
 
+extension Query {
+	public enum Definition: Hashable, Sendable {
+		case injections
+		case highlights
+		case locals
+		case custom(String)
+
+		public var name: String {
+			switch self {
+			case .injections:
+				return "injections"
+			case .highlights:
+				return "highlights"
+			case .locals:
+				return "locals"
+			case .custom(let value):
+				return value
+			}
+		}
+
+		public var filename: String {
+			"\(name).scm"
+		}
+	}
+}
+
 /// A combined name and range
 ///
 /// Useful for generalizing data from query matches.
@@ -44,7 +70,13 @@ extension NamedRange: Comparable {
 	}
 }
 
-public extension QueryMatch {
+extension NamedRange: CustomDebugStringConvertible {
+	public var debugDescription: String {
+		"<\"\(name)\": \(tsRange)>"
+	}
+}
+
+extension QueryMatch {
 	/// Interpret the match using the "injections.scm" definition
 	///
 	/// - `injection.content` defines the range of the injection
@@ -52,7 +84,7 @@ public extension QueryMatch {
 	/// - if that is not present, uses `injection.language` metadata
 	///
 	/// If `textProvider` is nil and a node contents is needed, the injection is dropped.
-	func injection(with textProvider: ResolvingQueryCursor.TextProvider?) -> NamedRange? {
+	public func injection(with textProvider: Predicate.TextProvider) -> NamedRange? {
 		guard let contentCapture = captures(named: "injection.content").first else {
 			return nil
 		}
@@ -62,7 +94,7 @@ public extension QueryMatch {
 		let nodeLanguage: String?
 
 		if let node = languageCapture?.node {
-			nodeLanguage = textProvider?(node.range, node.pointRange)
+			nodeLanguage = textProvider(node.range, node.pointRange)
 		} else {
 			nodeLanguage = nil
 		}
@@ -77,11 +109,11 @@ public extension QueryMatch {
 	}
 }
 
-public extension QueryCapture {
+extension QueryCapture {
 	/// Interpret the capture using the "highlights.scm" definition
 	///
 	/// Capture names are used without modification.
-	var highlight: NamedRange? {
+	public var highlight: NamedRange? {
 		let components = nameComponents
 		guard components.isEmpty == false else { return nil }
 
@@ -89,54 +121,48 @@ public extension QueryCapture {
 	}
 }
 
-public extension QueryCapture {
-	var locals: NamedRange? {
+extension QueryCapture {
+	public var locals: NamedRange? {
 		return highlight
 	}
 }
 
-public extension QueryCursor {
-	/// Interpret the cursor using the "injections.scm" definition
+extension Sequence where Element == QueryMatch {
+	private var captures: [QueryCapture] {
+		map({ $0.captures })
+			.flatMap({ $0 })
+	}
+
+	/// Interpret matches using the "highlights.scm" definition
 	///
-	/// If `textProvider` is nil and a node contents is needed, the injection is dropped.
-	func injections(with textProvider: ResolvingQueryCursor.TextProvider?) -> [NamedRange] {
+	/// Results are sorted such that less-specific matches come before more-specific. This helps to resolve ambiguous patterns.
+	public func highlights() -> [NamedRange] {
+		captures
+			.sorted()
+			.compactMap { $0.highlight }
+	}
+
+	/// Interpret the match using the "injections.scm" definition.
+	///
+	/// - `injection.content` defines the range of the injection
+	/// - a node with `injection.language` specifies the value of the language in the text
+	/// - if that is not present, uses `injection.language` metadata
+	///
+	/// If `textProvider` returns nil and node contents is needed, the injection is dropped.
+	public func injections(with textProvider: Predicate.TextProvider) -> [NamedRange] {
 		return compactMap({ $0.injection(with: textProvider) })
 	}
 
-	/// Interpret the cursor using the "highlights.scm" definition
-	///
-	/// Results are sorted such that less-specific matches come before more-specific. This helps to resolve ambiguous patterns.
-	func highlights() -> [NamedRange] {
-		return map({ $0.captures })
-			.flatMap({ $0 })
-			.sorted()
-			.compactMap { $0.highlight }
-	}
-}
-
-public extension ResolvingQueryCursor {
-	/// Interpret the cursor using the "injections.scm" definition
-	///
-	/// If the cursor's textProvider is nil and a node contents is needed, the injection is dropped.
-	func injections() -> [NamedRange] {
-		return compactMap({ $0.injection(with: context.textProvider) })
-	}
-
-	/// Interpret the cursor using the "highlights.scm" definition
-	///
-	/// Results are sorted such that less-specific matches come before more-specific. This helps to resolve ambiguous patterns.
-	func highlights() -> [NamedRange] {
-		return map({ $0.captures })
-			.flatMap({ $0 })
-			.sorted()
-			.compactMap { $0.highlight }
-	}
-}
-
-public extension ResolvingQueryCursor {
-	func locals() -> [NamedRange] {
-		return map({ $0.captures })
-			.flatMap({ $0 })
+	/// Interpret the cursor using the "locals.scm" definition
+	public func locals() -> [NamedRange] {
+		captures
 			.compactMap({ $0.locals })
+	}
+}
+
+@available(*, deprecated, message: "Please use ResolvingQueryMatchSequence")
+extension ResolvingQueryCursor {
+	public func injections() -> [NamedRange] {
+		return compactMap({ $0.injection(with: context.textProvider) })
 	}
 }

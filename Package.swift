@@ -1,4 +1,4 @@
-// swift-tools-version: 5.8
+// swift-tools-version: 5.9
 
 import PackageDescription
 
@@ -8,18 +8,22 @@ let settings: [SwiftSetting] = [
 
 let package = Package(
 	name: "SwiftTreeSitter",
+	platforms: [
+		.macOS(.v10_13),
+		.macCatalyst(.v13),
+		.iOS(.v12),
+		.tvOS(.v12),
+		.watchOS(.v5),
+		.visionOS(.v1),
+	],
 	products: [
 		.library(name: "SwiftTreeSitter", targets: ["SwiftTreeSitter"]),
-		.library(name: "TreeSitterDocument", targets: ["TreeSitterDocument"]),
+		.library(name: "SwiftTreeSitterLayer", targets: ["SwiftTreeSitterLayer"]),
+	],
+	dependencies: [
+		.package(url: "https://github.com/tree-sitter/tree-sitter", .upToNextMinor(from: "0.25.0"))
 	],
 	targets: [
-		.target(
-			name: "tree-sitter",
-			path: "tree-sitter/lib",
-			sources: ["src/lib.c"],
-			publicHeadersPath: "include",
-			cSettings: [.headerSearchPath("src/")]
-		),
 		.target(
 			name: "TestTreeSitterSwift",
 			path: "tree-sitter-swift",
@@ -29,7 +33,9 @@ let package = Package(
 		),
 		.target(
 			name: "SwiftTreeSitter",
-			dependencies: ["tree-sitter"],
+			dependencies: [
+				.product(name: "TreeSitter", package: "tree-sitter")
+			],
 			swiftSettings: settings
 		),
 		.testTarget(
@@ -38,15 +44,14 @@ let package = Package(
 			swiftSettings: settings
 		),
 		.target(
-			name: "TreeSitterDocument",
+			name: "SwiftTreeSitterLayer",
 			dependencies: ["SwiftTreeSitter"],
 			swiftSettings: settings
 		),
 		.testTarget(
-			name: "TreeSitterDocumentTests",
-			dependencies: ["TreeSitterDocument", "TestTreeSitterSwift"],
+			name: "SwiftTreeSitterLayerTests",
+			dependencies: ["SwiftTreeSitterLayer", "TestTreeSitterSwift"],
 			swiftSettings: settings
 		),
 	]
 )
-

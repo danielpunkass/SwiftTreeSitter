@@ -1,5 +1,5 @@
 import Foundation
-import tree_sitter
+import TreeSitter
 
 enum ParserError: Error {
     case languageIncompatible
@@ -36,7 +36,7 @@ extension Parser {
         try setLanguage(language.tsLanguage)
     }
 
-    public func setLanguage(_ language: UnsafePointer<TSLanguage>) throws {
+    public func setLanguage(_ language: OpaquePointer) throws {
         let success = ts_parser_set_language(internalParser, language)
 
         if success == false {
@@ -44,16 +44,24 @@ extension Parser {
         }
     }
 
+    /// Resets the parser to begin at the beginning of the document.
+    ///
+    /// If the parser was cancelled or timed out, use this to reset it.
+    public func reset() {
+        ts_parser_reset(internalParser)
+    }
+
 	/// The ranges this parser will operate on.
 	///
-	/// This defaults to the entire document. This is useful
-	/// for working with embedded languages.
+	/// This defaults to the entire document. This is useful for working with embedded languages.
+	///
+	/// > Warning: These values must be manually updated, and must be in ascending order. The `includedRanges` property of `Tree` can be useful for this, as it is updtaed when edits are applied.
 	public var includedRanges: [TSRange] {
 		get {
 			var count: UInt32 = 0
 			let tsRangePointer = ts_parser_included_ranges(internalParser, &count)
 
-			let tsRangeBuffer = UnsafeBufferPointer<tree_sitter.TSRange>(start: tsRangePointer, count: Int(count))
+			let tsRangeBuffer = UnsafeBufferPointer<TreeSitter.TSRange>(start: tsRangePointer, count: Int(count))
 
 			return tsRangeBuffer.map({ TSRange(internalRange: $0) })
 		}
@@ -63,7 +71,7 @@ extension Parser {
 			ranges.withUnsafeBytes { bufferPtr in
 				let count = newValue.count
 
-				guard let ptr = bufferPtr.baseAddress?.bindMemory(to: tree_sitter.TSRange.self, capacity: count) else {
+				guard let ptr = bufferPtr.baseAddress?.bindMemory(to: TreeSitter.TSRange.self, capacity: count) else {
 					preconditionFailure("unable to convert pointer")
 				}
 
@@ -89,8 +97,9 @@ extension Parser {
 
 extension Parser {
     public typealias ReadBlock = (Int, Point) -> Data?
+	public typealias DataSnapshotProvider = @Sendable (Int, Point) -> Data?
 
-    public func parse(_ string: String) -> Tree? {
+    public func parse(_ string: String) -> MutableTree? {
         guard let data = string.data(using: encoding) else { return nil }
 
         let dataLength = data.count
@@ -100,41 +109,54 @@ extension Parser {
                 return nil
             }
 
-            return ts_parser_parse_string_encoding(internalParser, nil, ptr, UInt32(dataLength), TSInputEncodingUTF16)
+            return ts_parser_parse_string_encoding(internalParser, nil, ptr, UInt32(dataLength), TSInputEncodingUTF16LE)
         })
 
-        return optionalTreePtr.flatMap({ Tree(internalTree: $0) })
+        return optionalTreePtr.flatMap({ MutableTree(internalTree: $0) })
     }
 
-	public func parse(tree: Tree?, encoding: TSInputEncoding = TSInputEncodingUTF16, readBlock: @escaping ReadBlock) -> Tree? {
-        let input = Input(encoding: encoding, readBlock: readBlock)
+	public func parse(tree: Tree?, encoding: TSInputEncoding = TSInputEncodingUTF16LE, readBlock: ReadBlock) -> MutableTree? {
+		return withoutActuallyEscaping(readBlock) { escapingClosure in
+			let input = Input(encoding: encoding, readBlock: escapingClosure)
 
-        guard let internalInput = input.internalInput else {
-            return nil
-        }
+			guard let internalInput = input.internalInput else {
+				return nil
+			}
 
-        guard let newTree = ts_parser_parse(internalParser, tree?.internalTree, internalInput) else {
-            return nil
-        }
+			guard let newTree = ts_parser_parse(internalParser, tree?.internalTree, internalInput) else {
+				return nil
+			}
 
-        return Tree(internalTree: newTree)
+			return MutableTree(internalTree: newTree)
+		}
     }
 
-    public func parse(tree: Tree?, string: String, limit: Int? = nil, chunkSize: Int = 2048) -> Tree? {
+	public func parse(tree: MutableTree?, encoding: TSInputEncoding = TSInputEncodingUTF16LE, readBlock: ReadBlock) -> MutableTree? {
+		parse(tree: tree?.tree, encoding: encoding, readBlock: readBlock)
+	}
+
+    public func parse(tree: Tree?, string: String, limit: Int? = nil, chunkSize: Int = 2048) -> MutableTree? {
         let readFunction = Parser.readFunction(for: string, limit: limit, chunkSize: chunkSize)
 
         return parse(tree: tree, readBlock: readFunction)
     }
 
-    public static func readFunction(for string: String, limit: Int? = nil, chunkSize: Int = 2048) -> Parser.ReadBlock {
-        let usableLimit = limit ?? string.utf16.count
-        let encoding = String.nativeUTF16Encoding
+	public func parse(tree: MutableTree?, string: String, limit: Int? = nil, chunkSize: Int = 2048) -> MutableTree? {
+		parse(tree: tree?.tree, string: string, limit: limit, chunkSize: chunkSize)
+	}
 
-        return { (start, _) -> Data? in
-            return string.data(at: start,
-                               limit: usableLimit,
-                               using: encoding,
-                               chunkSize: chunkSize)
-        }
-    }
+	/// Form a function that captures an immutable view into the data of a `String`.
+	public static func readFunction(for string: String, limit: Int? = nil, chunkSize: Int = 2048) -> Parser.DataSnapshotProvider {
+		let usableLimit = limit ?? string.utf16.count
+		let encoding = String.nativeUTF16Encoding
+		
+		return { (start, _) -> Data? in
+			return string.data(
+				at: start,
+				limit: usableLimit,
+				using: encoding,
+				chunkSize: chunkSize
+			)
+		}
+	}
 }

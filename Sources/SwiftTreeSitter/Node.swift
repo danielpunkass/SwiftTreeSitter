@@ -7,7 +7,7 @@
 //
 
 import Foundation
-import tree_sitter
+import TreeSitter
 
 public struct Node {
     let internalNode: TSNode
@@ -56,6 +56,10 @@ extension Node {
         }
 
         return String(cString: str)
+    }
+
+    public var id: UInt {
+        return UInt(bitPattern: internalNode.id)
     }
 
     public var symbol: Int {

@@ -30,22 +30,39 @@ extension InputEdit {
 				  oldEndPoint: oldEndPoint,
 				  newEndPoint: newEndPoint ?? .zero)
 	}
+
+	init(range: NSRange, delta: Int, oldEndPoint: Point, transformer: Point.LocationTransformer) {
+		let startLocation = range.location
+		let newEndLocation = range.upperBound + delta
+
+		assert(startLocation >= 0)
+		assert(newEndLocation >= startLocation)
+
+		let startPoint = transformer(startLocation) ?? .zero
+		let newEndPoint = transformer(newEndLocation) ?? .zero
+
+		assert(oldEndPoint >= startPoint)
+		assert(newEndPoint >= startPoint)
+
+		self.init(startByte: UInt32(range.location * 2),
+				  oldEndByte: UInt32(range.upperBound * 2),
+				  newEndByte: UInt32(newEndLocation * 2),
+				  startPoint: startPoint,
+				  oldEndPoint: oldEndPoint,
+				  newEndPoint: newEndPoint)
+	}
 }
 
 extension Parser {
-	func parse(state: ParseState, string: String, limit: Int? = nil) -> ParseState {
-		let newTree = parse(tree: state.tree, string: string, limit: limit)
-
-		return ParseState(tree: newTree)
-	}
-
-	func parse(state: ParseState, readHandler: @escaping Parser.ReadBlock) -> ParseState {
+	func parse(state: ParseState, readHandler: Parser.ReadBlock) -> ParseState {
 		let newTree = parse(tree: state.tree, readBlock: readHandler)
 
 		return ParseState(tree: newTree)
 	}
+}
 
-	var incluedRangeSet: IndexSet {
+extension MutableTree {
+	var includedSet: IndexSet {
 		var set = IndexSet()
 
 		for tsRange in includedRanges {
@@ -55,27 +72,5 @@ extension Parser {
 		}
 
 		return set
-	}
-}
-
-extension Query {
-	public enum Definition: Hashable, Sendable {
-		case injections
-		case highlights
-		case locals
-		case custom(String)
-
-		var name: String {
-			switch self {
-			case .injections:
-				return "injections"
-			case .highlights:
-				return "highlights"
-			case .locals:
-				return "locals"
-			case .custom(let value):
-				return value
-			}
-		}
 	}
 }
